@@ -55,4 +55,8 @@ button {
 .circle {
   border-radius: 50%;
 }
+
+button:disabled {
+  opacity: 70%;
+}
 </style>

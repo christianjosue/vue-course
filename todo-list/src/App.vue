@@ -1,27 +1,12 @@
 <template>
   <Navbar />
   <main>
-    <Modal :show="editTodoForm.show" @close="editTodoForm.show = false">
-      <template #header>
-        <h2>Edit Todo</h2>
-      </template>
-
-      <template #content>
-        <form class="editTodoForm">
-          <div>
-            <label>Todo title</label>
-            <input type="text" v-model="editTodoForm.todo.title">
-          </div>
-        </form>
-      </template>
-
-      <template #footer>
-        <div class="edit-todo-modal-footer">
-          <Btn class="edit-todo-submit-btn" @click="updateTodo">Submit</Btn>
-          <Btn type="danger" @click="editTodoForm.show = false">Close</Btn>
-        </div>
-      </template>
-    </Modal>
+    <EditTodoForm 
+      :show="editTodoForm.show"
+      @close="editTodoForm.show == false"
+      @submit="updateTodo"
+      v-model="editTodoForm.todo.title"
+    />
     <Alert
       :show="alert.show"
       :message="alert.message"
@@ -30,17 +15,20 @@
       type="danger"
     />
     <section>
-      <AddTodoForm @submit="addTodo" />
+      <AddTodoForm :isLoading="isPostingTodo" @submit="addTodo" />
     </section>
 
     <section>
-      <Todo 
-        v-for="todo in todos"
-        :key="todo.id"
-        :title="todo.title"
-        @remove="removeTodo(todo.id)"
-        @edit="showEditTodoForm(todo)"
-      />
+      <Spinner class="spiner" v-if="isLoading"/>
+      <div v-else>
+        <Todo 
+          v-for="todo in todos"
+          :key="todo.id"
+          :title="todo.title"
+          @remove="removeTodo(todo.id)"
+          @edit="showEditTodoForm(todo)"
+        />
+      </div>
     </section>
   </main>
 </template>
@@ -52,6 +40,8 @@ import AddTodoForm from "./components/AddTodoForm.vue";
 import Todo from "./components/Todo.vue";
 import Modal from "./components/Modal.vue";
 import Btn from "./components/Btn.vue";
+import Spinner from './components/Spinner.vue';
+import EditTodoForm from "./components/EditTodoForm.vue";
 import axios from 'axios';
 
 export default {
@@ -61,7 +51,9 @@ export default {
     AddTodoForm,
     Todo,
     Modal,
-    Btn
+    Btn,
+    Spinner,
+    EditTodoForm
 },
 
   data() {
@@ -72,6 +64,8 @@ export default {
         message: "",
         type: "danger"
       },
+      isLoading: false,
+      isPostingTodo: false,
       editTodoForm: {
         show: false,
         todo: {
@@ -88,12 +82,14 @@ export default {
 
   methods: {
     async fetchTodo() {
+      this.isLoading = true;
       try {
-        const res = await axios.get('http://localhost:8080/todos');
+        const res = await axios.get('/api/todos');
         this.todos = res.data;
       } catch (err) {
         this.showAlert(err.message);
       }
+      this.isLoading = false;
     },
 
     showAlert(message, type = "danger") {
@@ -108,15 +104,17 @@ export default {
         return;
       }
 
-      const res = await axios.post('http://localhost:8080/todos', {
+      this.isPostingTodo = true;
+      const res = await axios.post('/api/todos', {
         title,
       });
+      this.isPostingTodo = false;
 
       this.fetchTodo();
     },
 
     async removeTodo(id) {
-      await axios.delete(`http://localhost:8080/todos/${id}`);
+      await axios.delete(`/api/todos/${id}`);
       this.fetchTodo();
     },
 
@@ -125,18 +123,17 @@ export default {
       this.editTodoForm.todo = {...todo};
     },
 
-    updateTodo() {
-      if (this.editTodoForm.todo.title === "") {
-        this.alert.show = true;
-        this.editTodoForm.show = false;
-        return;
+    async updateTodo() {
+      try {
+        const {id, title} = this.editTodoForm.todo;
+        await axios.put(`/api/todos/${id}`, {title});
+
+        const todo = this.todos.find(todo => todo.id === this.editTodoForm.todo.id);
+        todo.title = this.editTodoForm.todo.title;
+      } catch (e) {
+        this.showAlert("Failed updating todo");
       }
-      const todo = this.todos.find(todo => todo.id === this.editTodoForm.todo.id);
-      todo.title = this.editTodoForm.todo.title;
       this.editTodoForm.show = false;
-      if (this.alert.show) {
-        this.alert.show = false;
-      }
     }
   },
 };
@@ -148,19 +145,8 @@ main {
   padding: 50px 100px;
 }
 
-.editTodoForm > input {
-  width: 100%;
-  height: 30px;
-  border: 1px solid var(--accent-color);
-}
-
-.edit-todo-modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  padding: 10px;
-}
-
-.edit-todo-submit-btn {
-  margin-right: 5px;
+.spinner {
+  margin: auto;
+  margin-top: 30px;
 }
 </style>
